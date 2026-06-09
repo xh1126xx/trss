@@ -181,8 +181,18 @@ func (a *App) sendLoop() {
 			a.audioBuf = a.audioBuf[:0]
 			a.bufMu.Unlock()
 
-			// 包装为 WAV 格式
-			wavData := pcmToWAV(pcmData, a.sampleRate, 1, 16)
+			// 使用系统实际音频格式封装为 WAV
+			sr, ch, bits := a.capture.ActualFormat()
+			if sr == 0 {
+				sr = 48000
+			}
+			if ch == 0 {
+				ch = 2
+			}
+			if bits == 0 {
+				bits = 16
+			}
+			wavData := pcmToWAV(pcmData, sr, ch, bits)
 
 			// 发送翻译请求
 			result, err := a.translator.Translate(wavData)
@@ -210,14 +220,26 @@ func (a *App) sendLoop() {
 	}
 }
 
-// isPromptEcho 检查返回文本是否只是提示词的回显（无实际翻译）
+// isPromptEcho 检查返回文本是否是无效回显（提示词、指令等非翻译内容）
 func isPromptEcho(text, prompt string) bool {
 	text = strings.TrimSpace(text)
-	if len(text) == 0 || len(prompt) == 0 {
-		return false
+	if len(text) == 0 {
+		return true
 	}
-	// 如果文本包含提示词的核心内容，视为无效
-	if len(text) >= 20 && strings.Contains(prompt, text[:min(20, len(text))]) {
+	// 太短的不是正常翻译
+	if len(text) < 5 {
+		return true
+	}
+	// 包含翻译指令关键词的回显
+	keywords := []string{"翻译", "translate", "字幕", "subtitle", "输出", "简洁", "保留原意"}
+	for _, kw := range keywords {
+		if strings.Contains(text, kw) {
+			return true
+		}
+	}
+	// 纯语言代码（如 "en"、"zh"、"chinese"）
+	trimmed := strings.TrimSpace(text)
+	if len(trimmed) <= 15 && (strings.Contains(trimmed, "为") || strings.Contains(trimmed, "to")) {
 		return true
 	}
 	return false

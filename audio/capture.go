@@ -16,7 +16,7 @@ type Config struct {
 	FrameDuration int // 每帧毫秒数，默认 100
 }
 
-// DefaultConfig 返回默认音频配置（16kHz mono, 100ms per frame）
+// DefaultConfig 返回默认音频配置
 func DefaultConfig() Config {
 	return Config{
 		SampleRate:    16000,
@@ -29,6 +29,8 @@ func DefaultConfig() Config {
 type Frame struct {
 	Data       []byte
 	SampleRate int
+	Channels   int
+	BitsPerSample int
 }
 
 // Capture 系统音频捕获器（WASAPI Loopback）
@@ -39,12 +41,16 @@ type Capture struct {
 	onFrame  func(Frame)
 	stopCh   chan struct{}
 
+	// 实际音频格式（由系统混音决定）
+	actualSampleRate    int
+	actualChannels      int
+	actualBitsPerSample int
+
 	// COM 对象
 	enumerator    *wca.IMMDeviceEnumerator
 	device        *wca.IMMDevice
 	audioClient   *wca.IAudioClient
 	captureClient *wca.IAudioCaptureClient
-	mixFormat     *wca.WAVEFORMATEX
 }
 
 // NewCapture 创建音频捕获器
@@ -60,6 +66,13 @@ func (c *Capture) SetFrameCallback(fn func(Frame)) {
 	c.mu.Lock()
 	c.onFrame = fn
 	c.mu.Unlock()
+}
+
+// ActualFormat 返回系统实际使用的音频格式
+func (c *Capture) ActualFormat() (sampleRate, channels, bitsPerSample int) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.actualSampleRate, c.actualChannels, c.actualBitsPerSample
 }
 
 // Start 开始捕获系统音频（WASAPI Loopback）
@@ -102,21 +115,24 @@ func (c *Capture) Start() error {
 	}
 	c.audioClient = ac
 
-	// 5. 获取混音格式作为参考
+	// 5. 获取系统混音格式（loopback 只能用系统格式）
 	var mixFormat *wca.WAVEFORMATEX
 	if err := ac.GetMixFormat(&mixFormat); err != nil {
 		return fmt.Errorf("GetMixFormat: %w", err)
 	}
-	c.mixFormat = mixFormat
 
-	// 6. 初始化音频客户端（Loopback 模式）
-	// hnsBufferDuration = FrameDuration * 10000 (hundreds of nanoseconds)
+	// 记录实际音频参数（用于后续 WAV 封装）
+	c.actualSampleRate = int(mixFormat.NSamplesPerSec)
+	c.actualChannels = int(mixFormat.NChannels)
+	c.actualBitsPerSample = int(mixFormat.WBitsPerSample)
+
+	// 6. 初始化音频客户端（Loopback 模式，使用系统原生混音格式）
 	hnsBufferDuration := wca.REFERENCE_TIME(c.cfg.FrameDuration) * 10000
 	if err := ac.Initialize(
 		wca.AUDCLNT_SHAREMODE_SHARED,
 		wca.AUDCLNT_STREAMFLAGS_LOOPBACK,
 		hnsBufferDuration,
-		0, // 共享模式时 nsPeriodicity 必须为 0
+		0,
 		mixFormat,
 		nil,
 	); err != nil {
@@ -157,29 +173,27 @@ func (c *Capture) captureLoop() {
 		running := c.running
 		client := c.captureClient
 		fn := c.onFrame
+		sampleRate := c.actualSampleRate
+		channels := c.actualChannels
+		bitsPerSample := c.actualBitsPerSample
 		c.mu.Unlock()
 
 		if !running || client == nil {
 			return
 		}
 
-		// 检查是否有可用的音频帧
 		var framesInPacket uint32
 		if err := client.GetNextPacketSize(&framesInPacket); err != nil {
 			continue
 		}
 
 		if framesInPacket == 0 {
-			// 没有数据，短暂等待避免忙轮询
-			// Sleep approximately for the frame duration
 			continue
 		}
 
-		// 读取音频数据
 		var data *byte
 		var framesToRead uint32
 		var flags uint32
-		var devicePos, qpcPos uint64
 
 		if err := client.GetBuffer(&data, &framesToRead, &flags, nil, nil); err != nil {
 			continue
@@ -187,33 +201,23 @@ func (c *Capture) captureLoop() {
 
 		// 跳过静音帧
 		if flags&wca.AUDCLNT_BUFFERFLAGS_SILENT == 0 && data != nil && framesToRead > 0 {
-			c.mu.Lock()
-			rate := c.cfg.SampleRate
-			c.mu.Unlock()
-
-			// 计算数据大小：帧数 * 通道数 * 每样本字节数
-			c.mu.Lock()
-			channels := c.cfg.Channels
-			c.mu.Unlock()
-
-			bytesPerFrame := channels * 2 // 16-bit = 2 bytes per sample per channel
+			bytesPerFrame := channels * bitsPerSample / 8
 			dataLen := int(framesToRead) * bytesPerFrame
 
-			// 从 C 指针安全复制数据到 Go 切片
 			samples := make([]byte, dataLen)
 			copy(samples, unsafe.Slice(data, dataLen))
 
 			if fn != nil {
 				fn(Frame{
-					Data:       samples,
-					SampleRate: rate,
+					Data:          samples,
+					SampleRate:    sampleRate,
+					Channels:      channels,
+					BitsPerSample: bitsPerSample,
 				})
 			}
 		}
 
 		client.ReleaseBuffer(framesToRead)
-		_ = devicePos
-		_ = qpcPos
 	}
 }
 
@@ -229,7 +233,6 @@ func (c *Capture) Stop() error {
 	c.running = false
 	close(c.stopCh)
 
-	// 停止并释放 COM 资源
 	if c.audioClient != nil {
 		c.audioClient.Stop()
 	}

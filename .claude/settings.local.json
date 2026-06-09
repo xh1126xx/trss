@@ -53,7 +53,8 @@
       "Bash(git commit -m 'chore: gitignore root trss.exe and remove stale binary *)",
       "Bash(git commit -m 'feat: settings panel with config list, view/edit/delete support *)",
       "Bash(git commit -m 'fix: use data URL prefix for audio \\(data:audio/wav;base64,...\\) *)",
-      "Bash(git commit -m 'fix: rate limiting, prompt echo filter, increased interval to 5s *)"
+      "Bash(git commit -m 'fix: rate limiting, prompt echo filter, increased interval to 5s *)",
+      "Bash(git commit -m 'fix: use actual system audio format for WAV header, not hardcoded 16kHz mono *)"
     ]
   }
 }
