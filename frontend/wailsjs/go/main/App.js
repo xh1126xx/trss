@@ -10,6 +10,10 @@ export function GetConfigs() {
   return window['go']['main']['App']['GetConfigs']();
 }
 
+export function GetFullConfig(arg1) {
+  return window['go']['main']['App']['GetFullConfig'](arg1);
+}
+
 export function PauseListening() {
   return window['go']['main']['App']['PauseListening']();
 }

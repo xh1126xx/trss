@@ -72,6 +72,11 @@ func (a *App) GetConfigs() []translator.Config {
 	return configs
 }
 
+// GetFullConfig 返回完整配置（含 API Key），用于编辑
+func (a *App) GetFullConfig(name string) (*translator.Config, error) {
+	return a.configs.Load(name)
+}
+
 func (a *App) SaveConfig(name, baseURL, apiKey, model, sourceLang, targetLang, prompt string) error {
 	cfg := translator.Config{
 		Name:       name,

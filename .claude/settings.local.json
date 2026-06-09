@@ -49,7 +49,9 @@
       "Bash(git commit -m 'docs: add Chinese README *)",
       "Bash(git commit -m 'chore: remove broken go-build exe from project root *)",
       "Bash(powershell -Command \"Compress-Archive -Path 'D:\\\\trss\\\\build\\\\bin\\\\trss.exe' -DestinationPath 'D:\\\\trss\\\\build\\\\bin\\\\trss-v1.0.0-portable.zip' -Force\")",
-      "Bash(git commit -m 'fix: subtitle events, audio accumulation, responsive window *)"
+      "Bash(git commit -m 'fix: subtitle events, audio accumulation, responsive window *)",
+      "Bash(git commit -m 'chore: gitignore root trss.exe and remove stale binary *)",
+      "Bash(git commit -m 'feat: settings panel with config list, view/edit/delete support *)"
     ]
   }
 }

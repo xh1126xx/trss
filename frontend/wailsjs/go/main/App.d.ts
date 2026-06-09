@@ -6,6 +6,8 @@ export function DeleteConfig(arg1:string):Promise<void>;
 
 export function GetConfigs():Promise<Array<translator.Config>>;
 
+export function GetFullConfig(arg1:string):Promise<translator.Config>;
+
 export function PauseListening():Promise<void>;
 
 export function SaveConfig(arg1:string,arg2:string,arg3:string,arg4:string,arg5:string,arg6:string,arg7:string):Promise<void>;
