@@ -43,7 +43,7 @@ func (c *Client) buildSystemPrompt() string {
 
 // Translate 发送音频数据到多模态 API，返回翻译文本
 func (c *Client) Translate(audio []byte) (*Result, error) {
-	audioB64 := base64.StdEncoding.EncodeToString(audio)
+	audioB64 := "data:audio/wav;base64," + base64.StdEncoding.EncodeToString(audio)
 
 	reqBody := map[string]interface{}{
 		"model": c.cfg.Model,
