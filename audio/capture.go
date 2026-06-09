@@ -3,6 +3,7 @@ package audio
 import (
 	"fmt"
 	"sync"
+	"time"
 	"unsafe"
 
 	"github.com/go-ole/go-ole"
@@ -188,6 +189,7 @@ func (c *Capture) captureLoop() {
 		}
 
 		if framesInPacket == 0 {
+			time.Sleep(10 * time.Millisecond)
 			continue
 		}
 

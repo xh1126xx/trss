@@ -198,14 +198,14 @@ func (a *App) sendLoop() {
 			continue
 		}
 
-		// 解析原文+译文
-		sourceText, targetText := parseBilingual(result.Text, a.translator.Config().SourceLang, a.translator.Config().TargetLang)
-		if sourceText == "" && targetText == "" {
-			continue
-		}
-		// 如果解析失败，整段当译文
+		// 解析原文+译文，如果失败则整段当译文
+		sourceText, targetText := parseBilingual(result.Text)
 		if targetText == "" {
-			targetText = result.Text
+			targetText = strings.TrimSpace(result.Text)
+			sourceText = ""
+		}
+		if targetText == "" {
+			continue
 		}
 
 		runtime.EventsEmit(a.ctx, "subtitle", map[string]interface{}{
@@ -216,8 +216,7 @@ func (a *App) sendLoop() {
 }
 
 // parseBilingual 从 API 回复中提取原文和译文
-// 期望格式：【原文】xxx【译文】yyy 或 原文: xxx\n译文: yyy
-func parseBilingual(text, srcLang, tgtLang string) (source, target string) {
+func parseBilingual(text string) (source, target string) {
 	text = strings.TrimSpace(text)
 
 	// 尝试多种分隔方式
@@ -234,13 +233,10 @@ func parseBilingual(text, srcLang, tgtLang string) (source, target string) {
 		srcIdx := strings.Index(text, p.srcTag)
 		tgtIdx := strings.Index(text, p.tgtTag)
 		if srcIdx >= 0 && tgtIdx > srcIdx {
-			source = strings.TrimSpace(text[srcIdx+len(p.srcTag):])
-			// 截取到 tgtTag 之前或取全部
-			endIdx := strings.Index(source, p.tgtTag)
-			if endIdx > 0 {
-				source = strings.TrimSpace(source[:endIdx])
-			}
-			// 重新定位译文
+			// 提取原文：从 srcTag 到 tgtTag 之间
+			srcStart := srcIdx + len(p.srcTag)
+			source = strings.TrimSpace(text[srcStart:tgtIdx])
+			// 提取译文：从 tgtTag 之后
 			tgtStart := tgtIdx + len(p.tgtTag)
 			if tgtStart < len(text) {
 				target = strings.TrimSpace(text[tgtStart:])
@@ -249,16 +245,13 @@ func parseBilingual(text, srcLang, tgtLang string) (source, target string) {
 		}
 	}
 
-	// 尝试按 "\n" 分割：第一行原文，第二行译文
-	lines := strings.SplitN(text, "\n", 3)
-	for i, l := range lines {
-		lines[i] = strings.TrimSpace(l)
-	}
-	if len(lines) >= 2 && len(lines[0]) > 0 && len(lines[1]) > 0 {
-		return lines[0], lines[1]
+	// 尝试按 "\n\n" 分割：第一段原文，第二段译文
+	parts := strings.SplitN(text, "\n\n", 2)
+	if len(parts) == 2 {
+		return strings.TrimSpace(parts[0]), strings.TrimSpace(parts[1])
 	}
 
-	// 无法解析
+	// 无法解析，整体当译文
 	return "", text
 }
 
