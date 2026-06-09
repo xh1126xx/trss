@@ -1,43 +1,74 @@
 import './style.css';
-import './app.css';
+import { initSubtitle } from './subtitle.js';
+import { initSettings } from './settings.js';
 
-import logo from './assets/images/logo-universal.png';
-import {Greet} from '../wailsjs/go/main/App';
+// 同声传译 - 前端入口
+document.addEventListener('DOMContentLoaded', () => {
+  initSubtitle();
+  initSettings();
 
-document.querySelector('#app').innerHTML = `
-    <img id="logo" class="logo">
-      <div class="result" id="result">Please enter your name below 👇</div>
-      <div class="input-box" id="input">
-        <input class="input" id="name" type="text" autocomplete="off" />
-        <button class="btn" onclick="greet()">Greet</button>
-      </div>
-    </div>
-`;
-document.getElementById('logo').src = logo;
+  const btnToggle = document.getElementById('btn-toggle');
+  const profileSelect = document.getElementById('profile-select');
+  const statusText = document.getElementById('status-text');
 
-let nameElement = document.getElementById("name");
-nameElement.focus();
-let resultElement = document.getElementById("result");
+  let isRunning = false;
 
-// Setup the greet function
-window.greet = function () {
-    // Get name
-    let name = nameElement.value;
-
-    // Check if the input is empty
-    if (name === "") return;
-
-    // Call App.Greet(name)
+  // 加载配置方案列表
+  async function loadProfiles() {
+    if (!window.go || !window.go.main || !window.go.main.App) return;
     try {
-        Greet(name)
-            .then((result) => {
-                // Update result with data back from App.Greet()
-                resultElement.innerText = result;
-            })
-            .catch((err) => {
-                console.error(err);
-            });
-    } catch (err) {
-        console.error(err);
+      const configs = await window.go.main.App.GetConfigs();
+      const currentVal = profileSelect.value;
+      profileSelect.innerHTML = '<option value="">选择配置方案...</option>';
+      (configs || []).forEach((cfg) => {
+        const opt = document.createElement('option');
+        opt.value = cfg.name;
+        opt.textContent = cfg.name;
+        profileSelect.appendChild(opt);
+      });
+      if (currentVal) profileSelect.value = currentVal;
+    } catch (e) {
+      console.error('Failed to load profiles:', e);
     }
-};
+  }
+
+  // 开始/暂停按钮
+  btnToggle.addEventListener('click', async () => {
+    const profile = profileSelect.value;
+    if (!profile) {
+      alert('请先选择配置方案');
+      return;
+    }
+
+    if (!isRunning) {
+      try {
+        await window.go.main.App.StartListening(profile);
+        isRunning = true;
+        btnToggle.textContent = '⏸ 暂停';
+        btnToggle.classList.add('active');
+        statusText.textContent = '● 运行中';
+        statusText.classList.add('active');
+      } catch (e) {
+        alert('启动失败: ' + e);
+      }
+    } else {
+      window.go.main.App.PauseListening();
+      isRunning = !isRunning;
+      if (isRunning) {
+        btnToggle.textContent = '⏸ 暂停';
+        btnToggle.classList.add('active');
+        statusText.textContent = '● 运行中';
+        statusText.classList.add('active');
+      } else {
+        btnToggle.textContent = '▶ 开始';
+        btnToggle.classList.remove('active');
+        statusText.textContent = '⏸ 已暂停';
+        statusText.classList.remove('active');
+      }
+    }
+  });
+
+  // 初始加载 + 定期刷新
+  loadProfiles();
+  setInterval(loadProfiles, 3000);
+});

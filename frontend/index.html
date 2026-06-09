@@ -1,12 +1,37 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="zh-CN">
 <head>
-    <meta charset="UTF-8"/>
-    <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
-    <title>trss</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>同声传译</title>
+  <link rel="stylesheet" href="/src/style.css" />
 </head>
 <body>
-<div id="app"></div>
-<script src="./src/main.js" type="module"></script>
+  <!-- 主控制栏 -->
+  <div id="toolbar">
+    <select id="profile-select">
+      <option value="">选择配置方案...</option>
+    </select>
+    <button id="btn-toggle">▶ 开始</button>
+    <button id="btn-settings">⚙</button>
+  </div>
+
+  <!-- 字幕悬浮区 -->
+  <div id="subtitle-container">
+    <div id="subtitle-source" class="subtitle-line src hidden"></div>
+    <div id="subtitle-target" class="subtitle-line tgt"></div>
+  </div>
+
+  <!-- 状态栏 -->
+  <div id="status-bar">
+    <span id="status-text">● 就绪</span>
+    <select id="display-mode">
+      <option value="target">仅翻译</option>
+      <option value="bilingual">双语</option>
+      <option value="source">仅原文</option>
+    </select>
+  </div>
+
+  <script type="module" src="/src/main.js"></script>
 </body>
 </html>
