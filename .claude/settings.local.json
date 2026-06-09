@@ -21,7 +21,25 @@
       "Bash(go get *)",
       "Bash(go mod *)",
       "Bash(go build *)",
-      "Bash(git commit -m 'feat: initialize Wails project scaffold *)"
+      "Bash(git commit -m 'feat: initialize Wails project scaffold *)",
+      "Bash(go test *)",
+      "Bash(git commit -m 'feat: add translation config management with JSON persistence *)",
+      "Bash(git commit -m 'feat: add universal multimodal translation client *)",
+      "Bash(go env *)",
+      "Bash(ls \"$\\(go env GOMODCACHE\\)/github.com/moutend/go-wca@v0.3.0/\")",
+      "Bash(ls \"$\\(go env GOMODCACHE\\)/github.com/moutend/go-wca@v0.3.0/pkg/\")",
+      "Bash(ls \"$\\(go env GOMODCACHE\\)/github.com/moutend/go-wca@v0.3.0/pkg/wca/\")",
+      "Bash(cat \"$\\(go env GOMODCACHE\\)/github.com/moutend/go-wca@v0.3.0/pkg/wca/GUID.go\")",
+      "Bash(grep -n \"LOOPBACK\\\\|AUDCLNT_SHARED\\\\|COINIT\\\\|CLSCTX_ALL\\\\|REFERENCE_TIME\\\\|WAVEFORMATEX\\\\|ERender\\\\|EConsole\\\\|eRender\\\\|eConsole\\\\|DataFlow\\\\|AUDCLNT_\" \"$\\(go env GOMODCACHE\\)/github.com/moutend/go-wca@v0.3.0/pkg/wca/\"*.go)",
+      "Bash(head -3 \"$\\(go env GOMODCACHE\\)/github.com/moutend/go-wca@v0.3.0/go.mod\")",
+      "Bash(grep -r \"CoCreateInstance\" \"$\\(go env GOMODCACHE\\)/github.com/go-ole/go-ole@\"*/*.go)",
+      "Bash(git commit -m 'feat: add WASAPI loopback audio capture module \\(pure Go, no CGo\\) *)",
+      "Bash(git commit -m 'feat: add App struct with Wails bindings for config and translation control *)",
+      "Bash(npm install *)",
+      "Bash(npm run *)",
+      "Bash(git commit -m 'feat: add subtitle overlay and settings panel frontend *)",
+      "Bash(git commit -m 'feat: add window always-on-top and system tray support *)",
+      "Bash(git commit -m 'feat: complete production build - 11MB binary, all tests pass *)"
     ]
   }
 }
