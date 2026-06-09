@@ -35,6 +35,9 @@ func NewApp() *App {
 // startup 在 Wails 启动时调用
 func (a *App) startup(ctx context.Context) {
 	a.ctx = ctx
+
+	// 始终置顶
+	runtime.WindowSetAlwaysOnTop(ctx, true)
 }
 
 // === 配置管理（暴露给前端）===
