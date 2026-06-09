@@ -27,8 +27,6 @@ type App struct {
 
 	bufMu    sync.Mutex
 	audioBuf []byte
-	// 滑动窗口：保留一部分上一次的音频（1s 重叠）
-	prevTail   []byte
 }
 
 func NewApp() *App {
@@ -101,7 +99,6 @@ func (a *App) StartListening(cfgName string) error {
 	a.translator = translator.NewClient(*cfg)
 	a.capture = capture
 	a.audioBuf = nil
-	a.prevTail = nil
 
 	capture.SetFrameCallback(func(frame audio.Frame) {
 		if !a.isListening {
@@ -123,27 +120,15 @@ func (a *App) StartListening(cfgName string) error {
 	return nil
 }
 
-// overlapBytes 根据实际音频格式计算 1 秒重叠量
-func (a *App) overlapBytes() int {
-	sr, ch, bits := 48000, 2, 16
-	if a.capture != nil {
-		sr, ch, bits = a.capture.ActualFormat()
-		if sr == 0 { sr = 48000 }
-		if ch == 0 { ch = 2 }
-		if bits == 0 { bits = 16 }
-	}
-	return sr * ch * bits / 8
-}
-
 func (a *App) sendLoop() {
-	// 每 2 秒发送
-	ticker := time.NewTicker(2 * time.Second)
+	ticker := time.NewTicker(1 * time.Second) // 每秒发送
 	defer ticker.Stop()
 	cooldown := time.Time{}
+	sending := false // 防止并发发送
 
 	for range ticker.C {
-		if !a.isListening {
-			return
+		if !a.isListening || sending {
+			continue
 		}
 		if time.Now().Before(cooldown) {
 			continue
@@ -151,67 +136,56 @@ func (a *App) sendLoop() {
 
 		a.bufMu.Lock()
 		bufLen := len(a.audioBuf)
-		if bufLen < 8000 { // 至少 ~40ms 音频
+		if bufLen < 4000 {
 			a.bufMu.Unlock()
 			continue
 		}
-
-		// 取出数据 + 滑动窗口重叠
 		pcmData := make([]byte, bufLen)
 		copy(pcmData, a.audioBuf)
 		a.audioBuf = a.audioBuf[:0]
-
-		// 保留最后约 1 秒用于下一轮重叠
-		overlap := a.overlapBytes()
-		if len(a.prevTail) > 0 {
-			// 在前方加上上一次的尾部
-			pcmData = append(a.prevTail, pcmData...)
-		}
-		if len(pcmData) > overlap {
-			a.prevTail = make([]byte, overlap)
-			copy(a.prevTail, pcmData[len(pcmData)-overlap:])
-		} else {
-			a.prevTail = make([]byte, len(pcmData))
-			copy(a.prevTail, pcmData)
-		}
 		a.bufMu.Unlock()
 
-		// WAV 封装
-		sr, ch, bits := a.capture.ActualFormat()
-		if sr == 0 { sr = 48000 }
-		if ch == 0 { ch = 2 }
-		if bits == 0 { bits = 16 }
-		wavData := pcmToWAV(pcmData, sr, ch, bits)
+		sending = true
+		go func(pcm []byte) {
+			defer func() { sending = false }()
 
-		// 发送到翻译 API
-		result, err := a.translator.Translate(wavData)
-		if err != nil {
-			errStr := err.Error()
-			runtime.EventsEmit(a.ctx, "error", errStr)
-			if strings.Contains(errStr, "429") {
-				cooldown = time.Now().Add(15 * time.Second)
+			sr, ch, bits := a.capture.ActualFormat()
+			if sr == 0 { sr = 48000 }
+			if ch == 0 { ch = 2 }
+			if bits == 0 { bits = 16 }
+			wavData := pcmToWAV(pcm, sr, ch, bits)
+
+			result, err := a.translator.Translate(wavData)
+			if err != nil {
+				errStr := err.Error()
+				runtime.EventsEmit(a.ctx, "error", errStr)
+				if strings.Contains(errStr, "429") {
+					cooldown = time.Now().Add(15 * time.Second)
+				}
+				return
 			}
-			continue
-		}
 
-		if result == nil || result.Text == "" || isPromptEcho(result.Text) {
-			continue
-		}
+			if result == nil || result.Text == "" {
+				return
+			}
 
-		// 解析原文+译文，如果失败则整段当译文
-		sourceText, targetText := parseBilingual(result.Text)
-		if targetText == "" {
-			targetText = strings.TrimSpace(result.Text)
-			sourceText = ""
-		}
-		if targetText == "" {
-			continue
-		}
+			text := strings.TrimSpace(result.Text)
+			// 限制单条字幕最长 300 字符
+			if len([]rune(text)) > 300 {
+				text = string([]rune(text)[:300])
+			}
 
-		runtime.EventsEmit(a.ctx, "subtitle", map[string]interface{}{
-			"source": sourceText,
-			"target": targetText,
-		})
+			sourceText, targetText := parseBilingual(text)
+			if targetText == "" {
+				targetText = text
+				sourceText = ""
+			}
+
+			runtime.EventsEmit(a.ctx, "subtitle", map[string]interface{}{
+				"source": sourceText,
+				"target": targetText,
+			})
+		}(pcmData)
 	}
 }
 
@@ -255,20 +229,6 @@ func parseBilingual(text string) (source, target string) {
 	return "", text
 }
 
-func isPromptEcho(text string) bool {
-	text = strings.TrimSpace(text)
-	if len(text) < 3 {
-		return true
-	}
-	keywords := []string{"翻译", "translate", "字幕", "subtitle", "输出:", "保留原意", "你是", "you are", "assistant", "助手"}
-	for _, kw := range keywords {
-		if strings.Contains(text, kw) {
-			return true
-		}
-	}
-	return false
-}
-
 func (a *App) StopListening() {
 	a.isListening = false
 	if a.capture != nil {
@@ -276,7 +236,6 @@ func (a *App) StopListening() {
 	}
 	a.bufMu.Lock()
 	a.audioBuf = nil
-	a.prevTail = nil
 	a.bufMu.Unlock()
 	runtime.EventsEmit(a.ctx, "status", map[string]interface{}{"listening": false})
 }
