@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
@@ -150,8 +151,12 @@ func (a *App) StartListening(cfgName string) error {
 
 // sendLoop 定期发送累积的音频到翻译 API
 func (a *App) sendLoop() {
-	ticker := time.NewTicker(2 * time.Second)
+	// 每 5 秒发送一次，避免 429 限流
+	ticker := time.NewTicker(5 * time.Second)
 	defer ticker.Stop()
+
+	cooldown := time.Time{} // 429 退避冷却
+	minAudioBytes := a.sampleRate * 2 / 2 // 至少 0.5 秒音频 (~8KB)
 
 	for {
 		select {
@@ -160,13 +165,18 @@ func (a *App) sendLoop() {
 				return
 			}
 
+			// 如果在冷却期，跳过
+			if time.Now().Before(cooldown) {
+				continue
+			}
+
 			a.bufMu.Lock()
-			if len(a.audioBuf) == 0 {
+			bufLen := len(a.audioBuf)
+			if bufLen < minAudioBytes {
 				a.bufMu.Unlock()
 				continue
 			}
-			// 取出当前缓冲并清空
-			pcmData := make([]byte, len(a.audioBuf))
+			pcmData := make([]byte, bufLen)
 			copy(pcmData, a.audioBuf)
 			a.audioBuf = a.audioBuf[:0]
 			a.bufMu.Unlock()
@@ -177,26 +187,40 @@ func (a *App) sendLoop() {
 			// 发送翻译请求
 			result, err := a.translator.Translate(wavData)
 			if err != nil {
-				runtime.EventsEmit(a.ctx, "error", err.Error())
+				errStr := err.Error()
+				runtime.EventsEmit(a.ctx, "error", errStr)
+				// 429 限流 → 冷却 15 秒
+				if strings.Contains(errStr, "429") {
+					cooldown = time.Now().Add(15 * time.Second)
+				}
 				continue
 			}
 			if result != nil && result.Text != "" {
-				runtime.EventsEmit(a.ctx, "subtitle", result)
+				// 过滤掉只返回了提示词本身的无效结果
+				if !isPromptEcho(result.Text, a.translator.Prompt()) {
+					runtime.EventsEmit(a.ctx, "subtitle", result)
+				}
 			}
 
 		default:
 			if !a.isListening {
-				// 最后一次刷新剩余数据
-				a.bufMu.Lock()
-				remaining := len(a.audioBuf)
-				a.bufMu.Unlock()
-				if remaining == 0 {
-					return
-				}
-				time.Sleep(100 * time.Millisecond)
+				return
 			}
 		}
 	}
+}
+
+// isPromptEcho 检查返回文本是否只是提示词的回显（无实际翻译）
+func isPromptEcho(text, prompt string) bool {
+	text = strings.TrimSpace(text)
+	if len(text) == 0 || len(prompt) == 0 {
+		return false
+	}
+	// 如果文本包含提示词的核心内容，视为无效
+	if len(text) >= 20 && strings.Contains(prompt, text[:min(20, len(text))]) {
+		return true
+	}
+	return false
 }
 
 // StopListening 停止监听并清空缓冲

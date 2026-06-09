@@ -33,6 +33,11 @@ func NewClient(cfg Config) *Client {
 	}
 }
 
+// Prompt 返回当前配置的原始提示词
+func (c *Client) Prompt() string {
+	return c.cfg.Prompt
+}
+
 // buildSystemPrompt 用配置变量替换提示词中的占位符
 func (c *Client) buildSystemPrompt() string {
 	s := c.cfg.Prompt
