@@ -4,7 +4,24 @@
       "Skill(run)",
       "Bash(git init *)",
       "Bash(git add *)",
-      "Bash(git commit -m 'docs: 同声传译桌面应用设计文档 *)"
+      "Bash(git commit -m 'docs: 同声传译桌面应用设计文档 *)",
+      "Bash(git config *)",
+      "Bash(gh auth *)",
+      "Read(//c/Users/andrew/.ssh/**)",
+      "Bash(ssh *)",
+      "Bash(git remote *)",
+      "Bash(git push *)",
+      "Bash(go version *)",
+      "Bash(npm --version)",
+      "Bash(git commit -m 'docs: add implementation plan for simultaneous translation app *)",
+      "Bash(cd /tmp)",
+      "Bash(go run *)",
+      "Read(//c/Users/andrew/AppData/Local/Temp/trss//**)",
+      "Read(//c/Users/andrew/AppData/Local/Temp/trss/frontend//**)",
+      "Bash(go get *)",
+      "Bash(go mod *)",
+      "Bash(go build *)",
+      "Bash(git commit -m 'feat: initialize Wails project scaffold *)"
     ]
   }
 }
