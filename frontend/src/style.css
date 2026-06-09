@@ -26,6 +26,9 @@ body {
   background: var(--bg-dark);
   border-radius: 20px;
   z-index: 1000;
+  max-width: 95vw;
+  flex-wrap: wrap;
+  justify-content: center;
 }
 
 #toolbar button {
@@ -65,15 +68,16 @@ body {
   border-radius: var(--radius);
   background: var(--bg-dark);
   color: var(--text-light);
-  font-size: 20px;
+  font-size: clamp(14px, 2.5vw, 28px);
   line-height: 1.5;
   margin: 4px 0;
   transition: opacity 0.3s;
   display: inline-block;
+  word-break: break-word;
 }
 
-.subtitle-line.src { font-size: 16px; opacity: 0.8; }
-.subtitle-line.tgt { font-size: 22px; font-weight: 600; }
+.subtitle-line.src { font-size: clamp(12px, 2vw, 22px); opacity: 0.8; }
+.subtitle-line.tgt { font-size: clamp(16px, 3vw, 32px); font-weight: 600; }
 .subtitle-line.hidden { display: none; }
 .subtitle-line.final { border-left: 3px solid var(--accent); }
 

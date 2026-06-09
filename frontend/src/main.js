@@ -1,6 +1,7 @@
 import './style.css';
 import { initSubtitle } from './subtitle.js';
 import { initSettings } from './settings.js';
+import { EventsOn } from '../wailsjs/runtime/runtime.js';
 
 // 同声传译 - 前端入口
 document.addEventListener('DOMContentLoaded', () => {
@@ -12,6 +13,23 @@ document.addEventListener('DOMContentLoaded', () => {
   const statusText = document.getElementById('status-text');
 
   let isRunning = false;
+
+  // 监听运行状态变化
+  EventsOn('status', (data) => {
+    if (data.listening) {
+      isRunning = true;
+      btnToggle.textContent = '⏸ 暂停';
+      btnToggle.classList.add('active');
+      statusText.textContent = '● 运行中';
+      statusText.classList.add('active');
+    } else {
+      isRunning = false;
+      btnToggle.textContent = '▶ 开始';
+      btnToggle.classList.remove('active');
+      statusText.textContent = '⏸ 已暂停';
+      statusText.classList.remove('active');
+    }
+  });
 
   // 加载配置方案列表
   async function loadProfiles() {
@@ -43,28 +61,11 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!isRunning) {
       try {
         await window.go.main.App.StartListening(profile);
-        isRunning = true;
-        btnToggle.textContent = '⏸ 暂停';
-        btnToggle.classList.add('active');
-        statusText.textContent = '● 运行中';
-        statusText.classList.add('active');
       } catch (e) {
         alert('启动失败: ' + e);
       }
     } else {
-      window.go.main.App.PauseListening();
-      isRunning = !isRunning;
-      if (isRunning) {
-        btnToggle.textContent = '⏸ 暂停';
-        btnToggle.classList.add('active');
-        statusText.textContent = '● 运行中';
-        statusText.classList.add('active');
-      } else {
-        btnToggle.textContent = '▶ 开始';
-        btnToggle.classList.remove('active');
-        statusText.textContent = '⏸ 已暂停';
-        statusText.classList.remove('active');
-      }
+      window.go.main.App.StopListening();
     }
   });
 

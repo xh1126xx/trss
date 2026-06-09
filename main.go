@@ -15,11 +15,9 @@ func main() {
 	app := NewApp()
 
 	err := wails.Run(&options.App{
-		Title:     "同声传译",
-		Width:     400,
-		Height:    200,
-		MinWidth:  300,
-		MinHeight: 120,
+		Title:  "同声传译",
+		Width:  800,
+		Height: 140,
 		AssetServer: &assetserver.Options{
 			Assets: assets,
 		},
@@ -28,7 +26,6 @@ func main() {
 		Bind: []interface{}{
 			app,
 		},
-
 	})
 	if err != nil {
 		println("Error:", err.Error())

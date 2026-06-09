@@ -1,10 +1,14 @@
 package main
 
 import (
+	"bytes"
 	"context"
+	"encoding/binary"
 	"fmt"
 	"os"
 	"path/filepath"
+	"sync"
+	"time"
 
 	"trss/audio"
 	"trss/translator"
@@ -19,6 +23,11 @@ type App struct {
 	translator  *translator.Client
 	configs     *translator.ConfigStore
 	isListening bool
+
+	// 音频累积
+	bufMu     sync.Mutex
+	audioBuf  []byte
+	sampleRate int
 }
 
 // NewApp 创建应用实例
@@ -28,21 +37,19 @@ func NewApp() *App {
 	os.MkdirAll(filepath.Dir(configPath), 0755)
 
 	return &App{
-		configs: translator.NewConfigStore(configPath),
+		configs:    translator.NewConfigStore(configPath),
+		sampleRate: 16000,
 	}
 }
 
 // startup 在 Wails 启动时调用
 func (a *App) startup(ctx context.Context) {
 	a.ctx = ctx
-
-	// 始终置顶
 	runtime.WindowSetAlwaysOnTop(ctx, true)
 }
 
 // === 配置管理（暴露给前端）===
 
-// GetConfigs 返回所有配置方案列表（隐藏 API Key）
 func (a *App) GetConfigs() []translator.Config {
 	names, err := a.configs.List()
 	if err != nil {
@@ -54,7 +61,6 @@ func (a *App) GetConfigs() []translator.Config {
 		if err != nil {
 			continue
 		}
-		// 不暴露真实 API Key 给前端，仅返回掩码版本
 		masked := *cfg
 		if len(masked.APIKey) > 4 {
 			masked.APIKey = masked.APIKey[:4] + "••••••"
@@ -66,7 +72,6 @@ func (a *App) GetConfigs() []translator.Config {
 	return configs
 }
 
-// SaveConfig 保存配置方案（前端 JSON 字段用 snake_case）
 func (a *App) SaveConfig(name, baseURL, apiKey, model, sourceLang, targetLang, prompt string) error {
 	cfg := translator.Config{
 		Name:       name,
@@ -80,12 +85,10 @@ func (a *App) SaveConfig(name, baseURL, apiKey, model, sourceLang, targetLang, p
 	return a.configs.Save(cfg)
 }
 
-// DeleteConfig 删除配置方案
 func (a *App) DeleteConfig(name string) error {
 	return a.configs.Delete(name)
 }
 
-// TestConnection 测试指定配置的 API 连通性
 func (a *App) TestConnection(name string) error {
 	cfg, err := a.configs.Load(name)
 	if err != nil {
@@ -104,34 +107,28 @@ func (a *App) StartListening(cfgName string) error {
 		return fmt.Errorf("load config: %w", err)
 	}
 
-	// 如果已经在运行，先停止
 	if a.capture != nil && a.capture.IsRunning() {
 		a.StopListening()
 	}
 
-	// 初始化音频捕获
 	capture := audio.NewCapture(audio.DefaultConfig())
-
 	a.translator = translator.NewClient(*cfg)
 	a.capture = capture
+	a.audioBuf = nil
+	a.sampleRate = 16000
 
-	// 设置音频帧回调
+	// 音频帧回调：累积到缓冲区
 	capture.SetFrameCallback(func(frame audio.Frame) {
 		if !a.isListening {
 			return
 		}
-		// 异步发送翻译请求
-		go func() {
-			result, err := a.translator.Translate(frame.Data)
-			if err != nil {
-				runtime.EventsEmit(a.ctx, "error", err.Error())
-				return
-			}
-			if result != nil {
-				runtime.EventsEmit(a.ctx, "subtitle", result)
-			}
-		}()
+		a.bufMu.Lock()
+		a.audioBuf = append(a.audioBuf, frame.Data...)
+		a.bufMu.Unlock()
 	})
+
+	// 定时发送：每 2 秒发送一次累积的音频
+	go a.sendLoop()
 
 	a.isListening = true
 
@@ -146,12 +143,66 @@ func (a *App) StartListening(cfgName string) error {
 	return nil
 }
 
-// StopListening 停止监听
+// sendLoop 定期发送累积的音频到翻译 API
+func (a *App) sendLoop() {
+	ticker := time.NewTicker(2 * time.Second)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ticker.C:
+			if !a.isListening {
+				return
+			}
+
+			a.bufMu.Lock()
+			if len(a.audioBuf) == 0 {
+				a.bufMu.Unlock()
+				continue
+			}
+			// 取出当前缓冲并清空
+			pcmData := make([]byte, len(a.audioBuf))
+			copy(pcmData, a.audioBuf)
+			a.audioBuf = a.audioBuf[:0]
+			a.bufMu.Unlock()
+
+			// 包装为 WAV 格式
+			wavData := pcmToWAV(pcmData, a.sampleRate, 1, 16)
+
+			// 发送翻译请求
+			result, err := a.translator.Translate(wavData)
+			if err != nil {
+				runtime.EventsEmit(a.ctx, "error", err.Error())
+				continue
+			}
+			if result != nil && result.Text != "" {
+				runtime.EventsEmit(a.ctx, "subtitle", result)
+			}
+
+		default:
+			if !a.isListening {
+				// 最后一次刷新剩余数据
+				a.bufMu.Lock()
+				remaining := len(a.audioBuf)
+				a.bufMu.Unlock()
+				if remaining == 0 {
+					return
+				}
+				time.Sleep(100 * time.Millisecond)
+			}
+		}
+	}
+}
+
+// StopListening 停止监听并清空缓冲
 func (a *App) StopListening() {
 	a.isListening = false
 	if a.capture != nil {
 		a.capture.Stop()
 	}
+	a.bufMu.Lock()
+	a.audioBuf = nil
+	a.bufMu.Unlock()
 	runtime.EventsEmit(a.ctx, "status", map[string]interface{}{
 		"listening": false,
 	})
@@ -163,4 +214,35 @@ func (a *App) PauseListening() {
 	runtime.EventsEmit(a.ctx, "status", map[string]interface{}{
 		"listening": a.isListening,
 	})
+}
+
+// pcmToWAV 将原始 PCM 数据包装为 WAV 格式
+func pcmToWAV(pcm []byte, sampleRate int, numChannels int, bitsPerSample int) []byte {
+	var buf bytes.Buffer
+
+	byteRate := sampleRate * numChannels * bitsPerSample / 8
+	blockAlign := numChannels * bitsPerSample / 8
+	dataSize := len(pcm)
+
+	// RIFF header
+	buf.WriteString("RIFF")
+	binary.Write(&buf, binary.LittleEndian, uint32(36+dataSize))
+	buf.WriteString("WAVE")
+
+	// fmt chunk
+	buf.WriteString("fmt ")
+	binary.Write(&buf, binary.LittleEndian, uint32(16))      // chunk size
+	binary.Write(&buf, binary.LittleEndian, uint16(1))       // PCM format
+	binary.Write(&buf, binary.LittleEndian, uint16(numChannels))
+	binary.Write(&buf, binary.LittleEndian, uint32(sampleRate))
+	binary.Write(&buf, binary.LittleEndian, uint32(byteRate))
+	binary.Write(&buf, binary.LittleEndian, uint16(blockAlign))
+	binary.Write(&buf, binary.LittleEndian, uint16(bitsPerSample))
+
+	// data chunk
+	buf.WriteString("data")
+	binary.Write(&buf, binary.LittleEndian, uint32(dataSize))
+	buf.Write(pcm)
+
+	return buf.Bytes()
 }

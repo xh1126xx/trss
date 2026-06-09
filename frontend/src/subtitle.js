@@ -1,3 +1,5 @@
+import { EventsOn } from '../wailsjs/runtime/runtime.js';
+
 // 字幕显示管理
 let mode = 'target';
 let timeoutId = null;
@@ -12,33 +14,17 @@ export function initSubtitle() {
     setMode(modeSel.value);
   });
 
-  // 等待 Wails 运行时就绪后绑定事件
-  waitForWails(() => {
-    window.go.main.App.EventsOn('subtitle', (result) => {
-      show(result.text, result.isFinal);
-    });
-
-    window.go.main.App.EventsOn('error', (msg) => {
-      console.error('[TRSS]', msg);
-    });
-
-    window.go.main.App.EventsOn('status', (data) => {
-      console.log('[TRSS] status:', data);
-    });
+  // 直接使用 Wails runtime 监听事件（不在 App 上）
+  EventsOn('subtitle', (result) => {
+    console.log('[TRSS] subtitle:', result);
+    show(result.text, result.isFinal);
   });
-}
 
-function waitForWails(fn) {
-  let attempts = 0;
-  const check = setInterval(() => {
-    if (window.go && window.go.main && window.go.main.App && window.go.main.App.EventsOn) {
-      clearInterval(check);
-      fn();
-    } else if (++attempts > 100) {
-      clearInterval(check);
-      console.error('[TRSS] Wails runtime not ready after 10s');
-    }
-  }, 100);
+  EventsOn('error', (msg) => {
+    console.error('[TRSS]', msg);
+    // 在前端也显示错误
+    show('⚠ ' + msg, true);
+  });
 }
 
 function setMode(m) {

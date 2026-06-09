@@ -39,7 +39,17 @@
       "Bash(npm run *)",
       "Bash(git commit -m 'feat: add subtitle overlay and settings panel frontend *)",
       "Bash(git commit -m 'feat: add window always-on-top and system tray support *)",
-      "Bash(git commit -m 'feat: complete production build - 11MB binary, all tests pass *)"
+      "Bash(git commit -m 'feat: complete production build - 11MB binary, all tests pass *)",
+      "Read(//c/Program Files/NSIS/**)",
+      "Read(//c/Program Files \\(x86\\)/NSIS/**)",
+      "Bash(zip trss-portable.zip trss.exe)",
+      "Read(//d/d/trss/build/bin/**)",
+      "Bash(powershell -Command \"Compress-Archive -Path 'D:\\\\trss\\\\build\\\\bin\\\\trss.exe' -DestinationPath 'D:\\\\trss\\\\build\\\\bin\\\\trss-v1.0.0-portable.zip'\")",
+      "Bash(git commit -m 'chore: add portable zip package v1.0.0 \\(4.3MB\\) *)",
+      "Bash(git commit -m 'docs: add Chinese README *)",
+      "Bash(git commit -m 'chore: remove broken go-build exe from project root *)",
+      "Bash(powershell -Command \"Compress-Archive -Path 'D:\\\\trss\\\\build\\\\bin\\\\trss.exe' -DestinationPath 'D:\\\\trss\\\\build\\\\bin\\\\trss-v1.0.0-portable.zip' -Force\")",
+      "Bash(git commit -m 'fix: subtitle events, audio accumulation, responsive window *)"
     ]
   }
 }
