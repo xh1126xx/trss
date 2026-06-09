@@ -1,3 +1,4 @@
 build/bin
+trss.exe
 node_modules
 frontend/dist
