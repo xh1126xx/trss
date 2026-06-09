@@ -38,6 +38,11 @@ func (c *Client) Prompt() string {
 	return c.cfg.Prompt
 }
 
+// Config 返回当前配置
+func (c *Client) Config() Config {
+	return c.cfg
+}
+
 // buildSystemPrompt 用配置变量替换提示词中的占位符
 func (c *Client) buildSystemPrompt() string {
 	s := c.cfg.Prompt

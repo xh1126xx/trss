@@ -62,7 +62,10 @@ function createPanel() {
           </div>
           <div class="form-group">
             <label>系统提示词（可用变量: {source} {target}）</label>
-            <textarea id="cfg-prompt" rows="4">将{source}实时翻译为{target}。要求简洁自然，适合字幕阅读。保留原意，不添加解释。每次只输出翻译后的一句话。</textarea>
+            <textarea id="cfg-prompt" rows="5">你听到的是{source}语音。请严格按以下格式输出：
+【原文】你听到的{source}原文
+【译文】对应的{target}翻译
+要求：简洁自然，适合字幕阅读。不要说其他多余的话。</textarea>
           </div>
           <div class="btn-row">
             <button id="btn-test">测试连接</button>
@@ -213,7 +216,7 @@ function clearForm() {
   panel.querySelector('#cfg-model').value = '';
   panel.querySelector('#cfg-source').value = 'en';
   panel.querySelector('#cfg-target').value = 'zh';
-  panel.querySelector('#cfg-prompt').value = '将{source}实时翻译为{target}。要求简洁自然，适合字幕阅读。保留原意，不添加解释。每次只输出翻译后的一句话。';
+  panel.querySelector('#cfg-prompt').value = '你听到的是{source}语音。请严格按以下格式输出：\n【原文】你听到的{source}原文\n【译文】对应的{target}翻译\n要求：简洁自然，适合字幕阅读。不要说其他多余的话。';
   panel.querySelector('#test-result').innerHTML = '';
 }
 

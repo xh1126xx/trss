@@ -1,6 +1,5 @@
 import { EventsOn } from '../wailsjs/runtime/runtime.js';
 
-// 字幕显示管理
 let mode = 'target';
 let timeoutId = null;
 let sourceEl, targetEl, modeSel;
@@ -14,16 +13,13 @@ export function initSubtitle() {
     setMode(modeSel.value);
   });
 
-  // 直接使用 Wails runtime 监听事件（不在 App 上）
-  EventsOn('subtitle', (result) => {
-    console.log('[TRSS] subtitle:', result);
-    show(result.text, result.isFinal);
+  // 接收字幕事件（现在包含 source 和 target）
+  EventsOn('subtitle', (data) => {
+    show(data.source, data.target);
   });
 
   EventsOn('error', (msg) => {
     console.error('[TRSS]', msg);
-    // 在前端也显示错误
-    show('⚠ ' + msg, true);
   });
 }
 
@@ -36,27 +32,41 @@ function setMode(m) {
     targetEl.classList.remove('hidden');
     sourceEl.classList.add('hidden');
   } else {
+    // bilingual
     targetEl.classList.remove('hidden');
     sourceEl.classList.remove('hidden');
   }
 }
 
-function show(text, isFinal) {
+function show(sourceText, targetText) {
   clearTimeout(timeoutId);
 
-  if (mode !== 'source') {
-    targetEl.textContent = text;
-    targetEl.classList.toggle('final', isFinal);
-  }
-  if (mode === 'bilingual' || mode === 'source') {
-    sourceEl.textContent = text;
+  // 原文（仅双语或纯原文模式显示）
+  if (mode === 'source' || mode === 'bilingual') {
+    if (sourceText) {
+      sourceEl.textContent = sourceText;
+      sourceEl.classList.remove('hidden');
+    } else {
+      sourceEl.classList.add('hidden');
+    }
   }
 
-  if (isFinal) {
-    timeoutId = setTimeout(() => {
-      targetEl.style.opacity = '0.3';
-    }, 5000);
-  } else {
-    targetEl.style.opacity = '1';
+  // 译文（仅翻译或双语模式显示）
+  if (mode === 'target' || mode === 'bilingual') {
+    if (targetText) {
+      targetEl.textContent = targetText;
+      targetEl.classList.remove('hidden');
+    } else {
+      targetEl.classList.add('hidden');
+    }
   }
+
+  // 5 秒后淡出
+  timeoutId = setTimeout(() => {
+    targetEl.style.opacity = '0.2';
+    sourceEl.style.opacity = '0.2';
+  }, 5000);
+
+  targetEl.style.opacity = '1';
+  sourceEl.style.opacity = '1';
 }
