@@ -56,7 +56,8 @@
       "Bash(git commit -m 'fix: rate limiting, prompt echo filter, increased interval to 5s *)",
       "Bash(git commit -m 'fix: use actual system audio format for WAV header, not hardcoded 16kHz mono *)",
       "Bash(git commit -m 'feat: major improvements - bilingual output, sliding window, real-time *)",
-      "Bash(git commit -m 'fix: prevent audio capture busy-loop, improve subtitle fallback *)"
+      "Bash(git commit -m 'fix: prevent audio capture busy-loop, improve subtitle fallback *)",
+      "Bash(git commit -m 'fix: put translation instruction alongside audio in same user message *)"
     ]
   }
 }

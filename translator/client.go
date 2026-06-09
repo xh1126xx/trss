@@ -55,6 +55,12 @@ func (c *Client) buildSystemPrompt() string {
 func (c *Client) Translate(audio []byte) (*Result, error) {
 	audioB64 := "data:audio/wav;base64," + base64.StdEncoding.EncodeToString(audio)
 
+	// 指令文本：放在和音频同一条消息中，确保模型执行翻译
+	instruction := fmt.Sprintf(
+		"请完成以下任务：\n1. 听这段%s音频，写出你听到的原文\n2. 将原文翻译为%s\n\n必须严格按格式输出（不要漏掉译文）：\n【原文】<原文内容>\n【译文】<%s翻译>",
+		c.cfg.SourceLang, c.cfg.TargetLang, c.cfg.TargetLang,
+	)
+
 	reqBody := map[string]interface{}{
 		"model": c.cfg.Model,
 		"messages": []map[string]interface{}{
@@ -65,6 +71,10 @@ func (c *Client) Translate(audio []byte) (*Result, error) {
 			{
 				"role": "user",
 				"content": []map[string]interface{}{
+					{
+						"type": "text",
+						"text": instruction,
+					},
 					{
 						"type": "input_audio",
 						"input_audio": map[string]interface{}{
